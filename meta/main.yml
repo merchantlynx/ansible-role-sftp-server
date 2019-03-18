@@ -1,0 +1,21 @@
+---
+dependencies: []
+
+galaxy_info:
+  role_name: sftp-server
+  author: "Brian O'Reilly"
+  description: Configure sftp server on top of OpenSSH, with segregated access
+  company: "Merchant Lynx Services"
+  license: "license (MIT)"
+  min_ansible_version: 2.4
+  platforms:
+    - name: EL
+      versions:
+        - 7
+  galaxy_tags:
+    - centos
+    - redhat
+    - rhel
+    - sftp
+    - networking
+    - system

@@ -1,0 +1,10 @@
+---
+# defaults file for sftp-server
+
+sftp_group: "sftp-users"
+sftp_users: []
+deleted_sftp_users: []
+
+sftp_chroot_directory: "/var/sftp_data"
+
+sftp_extra_config: ""

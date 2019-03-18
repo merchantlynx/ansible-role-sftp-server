@@ -1,0 +1,124 @@
+---
+# tasks file for sftp-server
+
+- name: Create sftp group
+  group:
+    name: "{{sftp_group}}"
+
+- name: Create sftp users
+  user:
+    name: "{{item.username}}"
+    password: "{{item.password if item.password is defined else '!'}}"
+    groups: "{{sftp_group}}"
+    comment: "{{item.name}}"
+    uid: "{{item.uid}}"
+  with_items: "{{sftp_users}}"
+
+- name: Install SSH public keys
+  authorized_key:
+    user: "{{item.0.username}}"
+    key: "{{item.1}}"
+  with_subelements:
+    - "{{sftp_users}}"
+    - ssh_keys
+
+- name: Delete users
+  user:
+    name: "{{item.username}}"
+    state: absent
+  with_items: "{{deleted_sftp_users}}"
+
+- name: Ensure sftp_chroot_directory exists
+  file:
+    path: "{{ sftp_chroot_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Ensure sftp_chroot_directory exists for each SFTP user
+  file:
+    path: "{{ sftp_chroot_directory }}/{{item.username}}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+  with_items: "{{sftp_users}}"
+
+- name: Ensure home directory exists for each SFTP user
+  file:
+    path: "{{ sftp_chroot_directory }}/{{item.username}}/home"
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+  with_items: "{{sftp_users}}"
+
+- name: Ensure home directory exists for each SFTP user
+  file:
+    path: "{{ sftp_chroot_directory }}/{{item.username}}/home/{{item.username}}"
+    state: directory
+    owner: "{{item.username}}"
+    group: "{{sftp_group}}"
+    mode: 0775
+  with_items: "{{sftp_users}}"
+
+- name: Allow SFTP port in selinux
+  seport:
+    ports: "{{sftp_port}}"
+    proto: tcp
+    setype: ssh_port_t
+    state: present
+  when: sftp_port is defined
+
+- name: Explicitly define normal ssh port
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^Port 22$'
+    line: 'Port 22'
+  when: sftp_port is defined
+  notify: Reload sshd
+
+- name: Define separate SFTP port
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "^Port {{sftp_port}}$"
+    line: "Port {{sftp_port}}"
+  when: sftp_port is defined
+  notify: Reload sshd
+
+- name: Define SFTP group config in /etc/ssh/sshd_config
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    block: |
+      Match Group {{sftp_group}}
+      ChrootDirectory {{sftp_chroot_directory}}/%u
+      ForceCommand internal-sftp
+      PermitTunnel no
+      AllowAgentForwarding no
+      AllowTcpForwarding no
+      X11Forwarding no
+      AllowGroups {{sftp_group}}
+      PubkeyAuthentication {{sftp_pubkey_authentication | default('yes')}}
+      PasswordAuthentication {{sftp_password_authentication | default('no')}}
+      {{sftp_extra_config}}
+  when: sftp_port is not defined
+  notify: Reload sshd
+
+- name: Define SFTP group config in /etc/ssh/sshd_config
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    block: |
+      Match LocalPort {{sftp_port}}
+      ChrootDirectory {{sftp_chroot_directory}}/%u
+      ForceCommand internal-sftp
+      PermitTunnel no
+      AllowAgentForwarding no
+      AllowTcpForwarding no
+      X11Forwarding no
+      AllowGroups {{sftp_group}}
+      PubkeyAuthentication {{sftp_pubkey_authentication | default('yes')}}
+      PasswordAuthentication {{sftp_password_authentication | default('no')}}
+      {{sftp_extra_config}}
+  when: sftp_port is defined
+  notify: Reload sshd
